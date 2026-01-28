@@ -35,7 +35,13 @@ export default function PermitCard({ permit, onClick, expanded = false }: Permit
     >
       {expanded && hasCoordinates && (
         <div className="h-48">
-          <StreetView lat={permit.lat!} lng={permit.lng!} address={permit.address || undefined} />
+          <StreetView
+            lat={permit.lat!}
+            lng={permit.lng!}
+            address={permit.address || undefined}
+            imageUrl={permit.image_url}
+            imageDate={permit.image_date}
+          />
         </div>
       )}
 

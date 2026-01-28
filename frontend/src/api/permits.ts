@@ -9,6 +9,8 @@ export interface Permit {
   cost: number | null;
   description: string | null;
   score: number;
+  image_url?: string;  // Pre-fetched Mapillary image
+  image_date?: number; // Image capture timestamp
 }
 
 export interface Stats {

@@ -5,14 +5,17 @@ Run this daily via GitHub Actions to update the site.
 """
 
 import json
+import os
 import httpx
 from pathlib import Path
 from collections import defaultdict
+import math
 
 OUTPUT_DIR = Path(__file__).parent.parent / "frontend" / "public" / "data"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 SODA_API_URL = "https://data.cityofnewyork.us/resource/ic3t-wcy2.json"
+MAPILLARY_TOKEN = os.environ.get("MAPILLARY_ACCESS_TOKEN", "")
 
 BOROUGH_MAP = {
     "1": "Manhattan",
@@ -26,6 +29,82 @@ JOB_TYPE_MAP = {
     "DM": "demolition",
     "NB": "new_building",
 }
+
+
+def calculate_bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate bearing from point 1 to point 2."""
+    to_rad = lambda d: d * math.pi / 180
+    to_deg = lambda r: r * 180 / math.pi
+
+    d_lon = to_rad(lon2 - lon1)
+    y = math.sin(d_lon) * math.cos(to_rad(lat2))
+    x = math.cos(to_rad(lat1)) * math.sin(to_rad(lat2)) - \
+        math.sin(to_rad(lat1)) * math.cos(to_rad(lat2)) * math.cos(d_lon)
+
+    bearing = to_deg(math.atan2(y, x))
+    return (bearing + 360) % 360
+
+
+def fetch_mapillary_image(lat: float, lng: float) -> dict | None:
+    """Fetch the best Mapillary image for a location."""
+    if not MAPILLARY_TOKEN:
+        return None
+
+    radius = 0.0045
+    bbox = f"{lng - radius},{lat - radius},{lng + radius},{lat + radius}"
+
+    try:
+        resp = httpx.get(
+            "https://graph.mapillary.com/images",
+            params={
+                "access_token": MAPILLARY_TOKEN,
+                "fields": "id,thumb_1024_url,captured_at,compass_angle,geometry",
+                "bbox": bbox,
+                "limit": 20,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        if not data.get("data"):
+            return None
+
+        # Find image best facing the building
+        best_image = None
+        best_score = float("inf")
+
+        for img in data["data"]:
+            if not img.get("geometry") or img.get("compass_angle") is None:
+                continue
+
+            img_lon, img_lat = img["geometry"]["coordinates"]
+            bearing_to_building = calculate_bearing(img_lat, img_lon, lat, lng)
+
+            angle_diff = abs(img["compass_angle"] - bearing_to_building)
+            if angle_diff > 180:
+                angle_diff = 360 - angle_diff
+
+            if angle_diff < best_score:
+                best_score = angle_diff
+                best_image = img
+
+        if best_image:
+            return {
+                "url": best_image.get("thumb_1024_url"),
+                "captured_at": best_image.get("captured_at"),
+            }
+
+        # Fallback to first image
+        first = data["data"][0]
+        return {
+            "url": first.get("thumb_1024_url"),
+            "captured_at": first.get("captured_at"),
+        }
+
+    except Exception as e:
+        print(f"    Mapillary error: {e}")
+        return None
 
 
 def parse_float(val):
@@ -139,8 +218,23 @@ def main():
     stats["by_type"] = dict(stats["by_type"])
     stats["by_borough"] = dict(stats["by_borough"])
 
-    # Featured (top scored)
+    # Featured (top scored) - also fetch Mapillary images
     featured = [p for p in all_permits if p["score"] >= 30][:10]
+
+    if MAPILLARY_TOKEN:
+        print("\nFetching Mapillary images for featured permits...")
+        for p in featured:
+            if p.get("lat") and p.get("lng"):
+                print(f"  {p['address']}...")
+                img_data = fetch_mapillary_image(p["lat"], p["lng"])
+                if img_data:
+                    p["image_url"] = img_data["url"]
+                    p["image_date"] = img_data["captured_at"]
+                    print(f"    ✓ Found image")
+                else:
+                    print(f"    ✗ No image found")
+    else:
+        print("\nNo MAPILLARY_ACCESS_TOKEN - skipping image fetch")
 
     # Hotspots
     hotspots = []

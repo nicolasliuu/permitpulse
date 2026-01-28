@@ -44,7 +44,13 @@ export default function FeaturedPermit({ permit }: FeaturedPermitProps) {
     <article className="bg-white rounded-2xl shadow-lg overflow-hidden border border-stone-100">
       {hasCoordinates ? (
         <div className="h-64 md:h-80">
-          <StreetView lat={permit.lat!} lng={permit.lng!} address={permit.address || undefined} />
+          <StreetView
+            lat={permit.lat!}
+            lng={permit.lng!}
+            address={permit.address || undefined}
+            imageUrl={permit.image_url}
+            imageDate={permit.image_date}
+          />
         </div>
       ) : (
         <div className="h-64 md:h-80 bg-gradient-to-br from-stone-100 to-stone-200 flex items-center justify-center">

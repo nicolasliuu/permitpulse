@@ -4,6 +4,8 @@ interface StreetViewProps {
   lat: number;
   lng: number;
   address?: string;
+  imageUrl?: string;  // Pre-fetched image URL
+  imageDate?: number; // Pre-fetched image capture date
 }
 
 interface MapillaryImage {
@@ -31,11 +33,34 @@ function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number
   return (bearing + 360) % 360;
 }
 
-export default function StreetView({ lat, lng, address }: StreetViewProps) {
+export default function StreetView({ lat, lng, address, imageUrl, imageDate }: StreetViewProps) {
   const [image, setImage] = useState<MapillaryImage | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!imageUrl);
   const [error, setError] = useState(false);
 
+  // If we have a pre-fetched image, use it directly
+  if (imageUrl) {
+    const captureDate = imageDate
+      ? new Date(imageDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+      : null;
+
+    return (
+      <div className="relative h-full">
+        <img
+          src={imageUrl}
+          alt={`Street view of ${address || 'location'}`}
+          className="w-full h-full object-cover"
+          loading="lazy"
+        />
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+          <p className="text-white/90 text-sm font-medium">{address}</p>
+          {captureDate && <p className="text-white/60 text-xs mt-1">Captured {captureDate}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  // Otherwise, fetch from Mapillary API
   useEffect(() => {
     if (!MAPILLARY_TOKEN) {
       setLoading(false);
