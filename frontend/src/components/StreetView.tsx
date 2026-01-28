@@ -47,7 +47,7 @@ export default function StreetView({ lat, lng, address }: StreetViewProps) {
       setError(false);
 
       try {
-        const radius = 0.001;
+        const radius = 0.004;
         const bbox = `${lng - radius},${lat - radius},${lng + radius},${lat + radius}`;
 
         const response = await fetch(
