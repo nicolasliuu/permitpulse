@@ -18,6 +18,10 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
+          fetch-depth: 0
+
+      - name: Pull latest changes
+        run: git pull origin main
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -36,5 +40,4 @@ jobs:
           git config --local user.name "GitHub Action"
           git add frontend/public/data/
           git diff --staged --quiet || git commit -m "Update permit data [skip ci]"
-          git pull --rebase
           git push
